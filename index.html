@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>AR Nouns: Countable vs Uncountable</title>
+  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+  <style>
+    /* ตกแต่ง UI ของ Tutorial และ Feedback */
+    #ui-container {
+      position: absolute; z-index: 1000; width: 100%; top: 10%;
+      text-align: center; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      pointer-events: none;
+    }
+    #tutorial {
+      background: rgba(0, 0, 0, 0.75); padding: 15px 25px; border-radius: 30px;
+      display: inline-block; font-size: 1.2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+      transition: all 0.3s ease;
+    }
+    #feedback {
+      margin-top: 20px; font-size: 2rem; font-weight: bold; text-shadow: 2px 2px 4px #000;
+      display: none; padding: 15px 30px; border-radius: 15px; text-transform: uppercase;
+    }
+    .correct { background-color: rgba(39, 174, 96, 0.9); }
+    .incorrect { background-color: rgba(231, 76, 60, 0.9); }
+  </style>
+</head>
+<body>
+
+  <div id="ui-container">
+    <div id="tutorial">🔍 หาพื้นที่เรียบๆ แล้วแตะหน้าจอเพื่อวางคำศัพท์</div>
+    <div id="feedback"></div>
+  </div>
+
+  <a-scene webxr="requiredFeatures: hit-test, local-floor;" ar-game-logic>
+    
+    <a-camera id="player-camera" position="0 1.6 0"></a-camera>
+
+    <a-entity id="reticle" visible="false"
+              geometry="primitive: ring; radiusInner: 0.1; radiusOuter: 0.15"
+              material="color: #00FF00; shader: flat; opacity: 0.8"
+              rotation="-90 0 0">
+    </a-entity>
+
+    <a-entity id="game-arena" visible="false">
+      
+      <a-entity id="vocab-model" position="0 0.2 0" animation="property: rotation; to: 0 360 0; loop: true; dur: 5000">
+        <a-text id="vocab-text" value="Apple" align="center" scale="1.5 1.5 1.5" color="#FFD700" position="0 0.5 0"></a-text>
+        <a-box color="#FF4500" depth="0.2" height="0.2" width="0.2"></a-box>
+      </a-entity>
+
+      <a-entity geometry="primitive: plane; width: 0.05; height: 10" material="color: white; shader: flat" rotation="-90 0 0" position="0 0 0"></a-entity>
+      
+      <a-entity position="-1.5 0.01 0" rotation="-90 0 0">
+        <a-plane width="2" height="10" material="color: #3498db; opacity: 0.3; transparent: true"></a-plane>
+        <a-text value="Countable\n(LEFT)" align="center" color="#FFF" scale="2 2 2" position="0 2 0"></a-text>
+      </a-entity>
+
+      <a-entity position="1.5 0.01 0" rotation="-90 0 0">
+        <a-plane width="2" height="10" material="color: #e67e22; opacity: 0.3; transparent: true"></a-plane>
+        <a-text value="Uncountable\n(RIGHT)" align="center" color="#FFF" scale="2 2 2" position="0 2 0"></a-text>
+      </a-entity>
+
+    </a-entity>
+  </a-scene>
+
+  <script>
+    // Logic การทำงานของ AR Markerless
+    AFRAME.registerComponent('ar-game-logic', {
+      init: function () {
+        this.reticle = document.getElementById('reticle');
+        this.gameArena = document.getElementById('game-arena');
+        this.tutorial = document.getElementById('tutorial');
+        this.feedback = document.getElementById('feedback');
+        this.camera = document.getElementById('player-camera');
+        
+        // ตั้งโจทย์คำศัพท์
+        this.currentVocab = { word: "Apple", type: "countable" }; // เปลี่ยนเป็น "Milk" / "uncountable" ได้
+        this.arenaPlaced = false;
+
+        // เปลี่ยนข้อความ Tutorial เมื่อเข้าโหมด AR
+        this.el.addEventListener('enter-vr', () => {
+          if (this.el.is('ar-mode')) {
+            this.tutorial.innerHTML = "ส่องกล้องไปที่พื้นห้องเรียน<br>เมื่อเห็นเป้าสีเขียว ให้แตะหน้าจอ!";
+          }
+        });
+
+        // ตั้งค่า Hit-Testing (ตรวจจับพื้นผิว)
+        this.el.sceneEl.renderer.xr.addEventListener('sessionstart', async () => {
+          const session = this.el.sceneEl.renderer.xr.getSession();
+          const viewerSpace = await session.requestReferenceSpace('viewer');
+          this.localFloorSpace = await session.requestReferenceSpace('local-floor');
+          this.hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
+        });
+
+        // เมื่อผู้ใช้แตะหน้าจอเพื่อวางคำศัพท์และเส้นแบ่งโซน
+        window.addEventListener('click', () => {
+          if (!this.reticle.getAttribute('visible') || this.arenaPlaced) return;
+
+          // นำตำแหน่งของ Reticle มาเป็นจุดกึ่งกลางของ Arena
+          const position = this.reticle.getAttribute('position');
+          this.gameArena.setAttribute('position', position);
+          
+          // หันหน้า Arena เข้าหาผู้ใช้
+          const camRotation = this.camera.getAttribute('rotation');
+          this.gameArena.setAttribute('rotation', { x: 0, y: camRotation.y, z: 0 });
+
+          this.gameArena.setAttribute('visible', true);
+          this.reticle.setAttribute('visible', false);
+          this.arenaPlaced = true;
+
+          this.tutorial.innerHTML = "ให้นักเรียนเดินไปยืนฝั่งที่ถูกต้อง!<br>ซ้าย (Countable) หรือ ขวา (Uncountable)";
+        });
+      },
+
+      tick: function (time, frame) {
+        if (!frame) return;
+
+        // 1. ระบบวาด Reticle ตอนค้นหาพื้น
+        if (!this.arenaPlaced) {
+          const session = this.el.sceneEl.renderer.xr.getSession();
+          if (this.hitTestSource && session) {
+            const hitTestResults = frame.getHitTestResults(this.hitTestSource);
+            if (hitTestResults.length > 0) {
+              const pose = hitTestResults[0].getPose(this.localFloorSpace);
+              this.reticle.setAttribute('visible', true);
+              this.reticle.setAttribute('position', pose.transform.position);
+            } else {
+              this.reticle.setAttribute('visible', false);
+            }
+          }
+          return;
+        }
+
+        // 2. ระบบโต้ตอบ (Feedback) เมื่อเด็กเดินเข้าโซน
+        // เช็คตำแหน่งของกล้อง (นักเรียน) เทียบกับ Arena ที่วางไว้
+        const camPos = new THREE.Vector3();
+        this.camera.object3D.getWorldPosition(camPos);
+        
+        const arenaPos = new THREE.Vector3();
+        this.gameArena.object3D.getWorldPosition(arenaPos);
+
+        // แปลงตำแหน่งกล้องให้อยู่ในแกน (Local Space) ของ Arena เพื่อหาว่าอยู่ซ้ายหรือขวา
+        const localCamPos = this.gameArena.object3D.worldToLocal(camPos.clone());
+        
+        // เช็คว่าเดินออกจากจุดกึ่งกลางพอสมควรหรือไม่ (กันการยืนคร่อมเส้น)
+        if (Math.abs(localCamPos.x) > 0.5) { 
+          const isStandingLeft = localCamPos.x < 0; // ฝั่งซ้ายคือ -x
+          const isStandingRight = localCamPos.x > 0; // ฝั่งขวาคือ +x
+          
+          this.feedback.style.display = "inline-block";
+          
+          // ตรวจคำตอบ (ในตัวอย่าง Apple = Countable = ฝั่งซ้าย)
+          if ((isStandingLeft && this.currentVocab.type === 'countable') || 
+              (isStandingRight && this.currentVocab.type === 'uncountable')) {
+            this.feedback.innerHTML = "⭐ CORRECT! เยี่ยมมาก ⭐";
+            this.feedback.className = "correct";
+          } else {
+            this.feedback.innerHTML = "❌ INCORRECT! ลองดูใหม่นะ ❌";
+            this.feedback.className = "incorrect";
+          }
+        } else {
+          // ถ้ายืนอยู่ตรงกลางเส้นแบ่ง จะไม่แสดงผลลัพธ์
+          this.feedback.style.display = "none";
+        }
+      }
+    });
+  </script>
+</body>
+</html>
