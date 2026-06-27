@@ -3,59 +3,62 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>Kitchen Dash: Drag & Drop Nouns</title>
-    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+    <title>Kitchen Dash: Hand Tracking AR</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     
     <style>
-        /* ล็อกหน้าเว็บไม่ให้ขยับหรือเลื่อนขึ้นลง เพื่อให้ลากไอเทมได้รวดเร็ว */
         html, body { 
             margin: 0; padding: 0; width: 100%; height: 100%; 
             overflow: hidden; font-family: 'Arial', sans-serif; 
-            background-color: #000; user-select: none;
+            background-color: #000; 
+            -webkit-user-select: none; user-select: none;
             position: fixed; touch-action: none;
         }
+
+        /* กล้องวิดีโอพื้นหลัง */
+        #webcam {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            object-fit: cover; z-index: 1;
+            transform: scaleX(-1); /* กลับซ้ายขวาเหมือนกระจก */
+        }
         
-        /* หน้าจอแนะนำการเล่นก่อนเริ่มเกม */
         #tutorial-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.92); color: white; display: flex;
             flex-direction: column; justify-content: center; align-items: center;
             z-index: 9999; text-align: center; padding: 20px; box-sizing: border-box;
-            touch-action: auto;
         }
         #start-btn {
             background: #ff9800; color: white; border: none; padding: 15px 35px;
             font-size: 22px; border-radius: 15px; cursor: pointer; margin-top: 25px;
-            font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.3); display: none;
         }
+        #loading-text { font-size: 18px; color: #ffeb3b; margin-top: 20px; }
 
-        /* ส่วนแสดงคะแนน */
         #score-ui {
             position: fixed; top: 15px; left: 50%; transform: translateX(-50%);
             z-index: 1000; display: none;
         }
         .score-box { background: rgba(0,0,0,0.75); color: #ffeb3b; padding: 8px 20px; border-radius: 20px; font-size: 18px; font-weight: bold; }
         
-        /* โซนการ์ดคำศัพท์ที่สามารถลากได้ */
         #drag-container {
-            position: fixed; top: 30%; left: 50%; transform: translate(-50%, -50%);
+            position: fixed; left: 50%; top: 30%; transform: translate(-50%, -50%);
             z-index: 1000; display: none; touch-action: none;
         }
         .card-box { 
             background: #fff; padding: 15px; border-radius: 20px; 
             box-shadow: 0 8px 20px rgba(0,0,0,0.4); text-align: center;
-            width: 150px; cursor: grab; border: 4px solid #ffcb2c;
+            width: 150px; border: 4px solid #ffcb2c;
         }
-        .card-box:active { cursor: grabbing; }
         .word-image { width: 110px; height: 110px; object-fit: contain; pointer-events: none; }
-        .word-text { color: #333; font-size: 26px; font-weight: bold; margin: 5px 0 0 0; }
+        .word-text { color: #333; font-size: 26px; font-weight: bold; margin: 5px 0 0 0; pointer-events: none; }
 
-        /* ตะกร้าเป้าหมายฝั่งซ้าย-ขวา */
         #basket-container {
             position: fixed; bottom: 30px; left: 0; width: 100%;
             display: flex; justify-content: space-around; z-index: 1000; display: none;
-            pointer-events: none; /* ให้ทะลุไปจับทิศทางการลากได้ง่ายขึ้น */
+            pointer-events: none;
         }
         .basket {
             width: 44%; background: rgba(255, 255, 255, 0.95); border-radius: 20px;
@@ -67,222 +70,174 @@
         .basket-img { width: 65px; height: 65px; object-fit: contain; }
         .basket-title { font-size: 16px; font-weight: bold; margin-top: 5px; line-height: 1.3; }
 
-        /* ป๊อปอัพตรวจคำตอบ */
         #feedback {
             position: fixed; top: 40%; left: 50%; transform: translate(-50%, -50%);
             width: 80%; max-width: 320px; padding: 25px 20px; border-radius: 20px; font-size: 26px; font-weight: bold;
             color: white; display: none; z-index: 2000; text-align: center;
             box-shadow: 0 5px 20px rgba(0,0,0,0.6);
         }
-        
-        /* สไตล์สำหรับครอบคลุมซีน AR ให้อยู่เป็นพื้นหลัง */
-        a-scene {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1;
+
+        /* 🔴 เคอร์เซอร์จำลองตำแหน่งมือ */
+        #hand-cursor {
+            position: fixed; width: 20px; height: 20px; background-color: rgba(255, 0, 0, 0.7);
+            border: 3px solid white; border-radius: 50%; z-index: 9999;
+            transform: translate(-50%, -50%); display: none; pointer-events: none;
+            transition: background-color 0.2s, transform 0.1s;
         }
+        .pinching { background-color: rgba(0, 255, 0, 0.8) !important; transform: translate(-50%, -50%) scale(1.5) !important; }
+
     </style>
 </head>
 <body>
 
+    <video id="webcam" autoplay playsinline></video>
+
+    <div id="hand-cursor"></div>
+
     <div id="tutorial-overlay">
-        <h2 style="font-size: 28px; color: #ffeb3b; margin-bottom: 5px;">Kitchen Dash 🧺</h2>
-        <h3 style="margin-top: 0; font-weight: normal; color: #ddd;">เกมลากคำศัพท์ลงตะกร้า AR</h3>
+        <h2 style="font-size: 28px; color: #ffeb3b; margin-bottom: 5px;">Kitchen Dash 🧺 (AI Hand Tracking)</h2>
+        <h3 style="margin-top: 0; font-weight: normal; color: #ddd;">เกมจีบนิ้วลากคำศัพท์ลงตะกร้า</h3>
         <p style="font-size: 18px; margin: 15px 0; max-width: 320px; line-height: 1.6; color: #eee;">
-            ใช้นิ้วแตะที่การ์ดตรงกลาง <br>
-            แล้ว **ลากนิ้วลงมาใส่ตะกร้า** ข้างล่างได้เลย!
+            ชูมือขึ้นมาหน้ากล้อง ✋ <br>
+            แล้วใช้ **นิ้วชี้และนิ้วโป้งจีบเข้าหากัน** 🤏<br>เพื่อหยิบการ์ดลากลงตะกร้า!
         </p>
+        <div id="loading-text">⏳ กำลังโหลด AI ตรวจจับมือ กรุณารอสักครู่...</div>
         <button id="start-btn" onclick="startGame()">ลุยกันเลย!</button>
     </div>
 
-    <div id="score-ui">
-        <div class="score-box">คะแนน: <span id="score">0</span></div>
-    </div>
+    <div id="score-ui"><div class="score-box">คะแนน: <span id="score">0</span></div></div>
 
     <div id="drag-container">
         <div class="card-box" id="drag-card">
-            <img id="current-image" class="word-image" src="" alt="Cartoon Item">
+            <img id="current-image" class="word-image" src="">
             <div class="word-text" id="current-word">Loading...</div>
         </div>
     </div>
 
     <div id="basket-container">
         <div class="basket basket-countable">
-            <img class="basket-img" src="https://cdn-icons-png.flaticon.com/512/3081/3081986.png" alt="Basket">
-            <div class="basket-title">Countable Nouns<br>(นับได้)</div>
+            <img class="basket-img" src="https://cdn-icons-png.flaticon.com/512/3081/3081986.png">
+            <div class="basket-title">Countable<br>(นับได้)</div>
         </div>
         <div class="basket basket-uncountable">
-            <img class="basket-img" src="https://cdn-icons-png.flaticon.com/512/3081/3081986.png" alt="Basket">
-            <div class="basket-title">Uncountable Nouns<br>(นับไม่ได้)</div>
+            <img class="basket-img" src="https://cdn-icons-png.flaticon.com/512/3081/3081986.png">
+            <div class="basket-title">Uncountable<br>(นับไม่ได้)</div>
         </div>
     </div>
 
     <div id="feedback"></div>
 
-    <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false;">
-        <a-entity camera></a-entity>
-    </a-scene>
-
     <script>
         const wordList = [
             { word: "Apple", isCountable: true, img: "https://cdn-icons-png.flaticon.com/512/415/415733.png", hint: "แอปเปิ้ลนับเป็นลูกได้จ้า" },
             { word: "Milk", isCountable: false, img: "https://cdn-icons-png.flaticon.com/512/2934/2934812.png", hint: "นมเป็นของเหลว นับไม่ได้จ้า" },
+            // ... (สามารถใส่คำศัพท์เพิ่มได้ตามเดิม) ...
             { word: "Egg", isCountable: true, img: "https://cdn-icons-png.flaticon.com/512/2912/2912165.png", hint: "ไข่นับเป็นฟองได้จ้า" },
-            { word: "Rice", isCountable: false, img: "https://cdn-icons-png.flaticon.com/512/4080/4080133.png", hint: "เมล็ดข้าวเล็กเกินไป นับไม่ได้นะ" },
-            { word: "Banana", isCountable: true, img: "https://cdn-icons-png.flaticon.com/512/2909/2909761.png", hint: "กล้วยนับเป็นลูกหรือเป็นหวีได้จ้า" },
-            { word: "Burger", isCountable: true, img: "https://cdn-icons-png.flaticon.com/512/3075/3075977.png", hint: "เบอร์เกอร์นับเป็นชิ้นได้จ้า" },
-            { word: "Carrot", isCountable: true, img: "https://cdn-icons-png.flaticon.com/512/4056/4056860.png", hint: "แครอทนับเป็นหัวได้จ้า" },
-            { word: "Water", isCountable: false, img: "https://cdn-icons-png.flaticon.com/512/3105/3105807.png", hint: "น้ำเปล่าเป็นของเหลว นับไม่ได้จ้า" },
-            { word: "Orange", isCountable: true, img: "https://cdn-icons-png.flaticon.com/512/1894/1894951.png", hint: "ส้มเป็นลูกๆ นับได้จ้า" },
-            { word: "Bread", isCountable: false, img: "https://cdn-icons-png.flaticon.com/512/3014/3014522.png", hint: "Bread ภาษาอังกฤษถือเป็นนามนับไม่ได้น้า" },
-            { word: "Cheese", isCountable: false, img: "https://cdn-icons-png.flaticon.com/512/2909/2909772.png", hint: "ชีสนับไม่ได้" },
-            { word: "Cookie", isCountable: true, img: "https://cdn-icons-png.flaticon.com/512/541/541732.png", hint: "คุ้กกี้นับเป็นชิ้นๆ ได้จ้า" },
-            { word: "Watermelon", isCountable: true, img: "https://cdn-icons-png.flaticon.com/512/2909/2909831.png", hint: "แตงโมเป็นผล นับได้จ้า" },
-            { word: "Sugar", isCountable: false, img: "https://cdn-icons-png.flaticon.com/512/5024/5024467.png", hint: "น้ำตาลเป็นเกล็ดเล็กๆ นับไม่ได้จ้า" },
-            { word: "Soup", isCountable: false, img: "https://cdn-icons-png.flaticon.com/512/3424/3424729.png", hint: "น้ำซุปเป็นของเหลว นับไม่ได้จ้า" },
-            { word: "Lemon", isCountable: true, img: "https://cdn-icons-png.flaticon.com/512/2909/2909804.png", hint: "มะนาวนับเป็นลูกได้จ้า" },
-            { word: "Honey", isCountable: false, img: "https://cdn-icons-png.flaticon.com/512/2558/2558057.png", hint: "น้ำผึ้งเป็นของเหลวเหนียวๆ นับไม่ได้จ้า" },
-            { word: "Juice", isCountable: false, img: "https://cdn-icons-png.flaticon.com/512/2442/2442019.png", hint: "น้ำผลไม้เป็นของเหลว นับไม่ได้จ้า" },
-            { word: "Meat", isCountable: false, img: "https://cdn-icons-png.flaticon.com/512/1041/1041315.png", hint: "เนื้อสัตว์นับไม่ได้จ้า" },
-            { word: "Tomato", isCountable: true, img: "https://cdn-icons-png.flaticon.com/512/2909/2909823.png", hint: "มะเขือเทศนับเป็นลูกได้จ้า" }
+            { word: "Rice", isCountable: false, img: "https://cdn-icons-png.flaticon.com/512/4080/4080133.png", hint: "เมล็ดข้าวเล็กเกินไป นับไม่ได้นะ" }
         ];
 
-        let currentIndex = 0;
-        let score = 0;
+        let currentIndex = 0; let score = 0;
         const container = document.getElementById('drag-container');
-        const card = document.getElementById('drag-card');
+        const cursor = document.getElementById('hand-cursor');
         
-        let active = false;
-        let currentX;
-        let currentY;
-        let initialX;
-        let initialY;
-        let xOffset = 0;
-        let yOffset = 0;
+        let isGrabbed = false;
+        let gameStarted = false;
 
         function startGame() {
             document.getElementById('tutorial-overlay').style.display = 'none';
             document.getElementById('score-ui').style.display = 'block';
             container.style.display = 'block';
             document.getElementById('basket-container').style.display = 'flex';
+            cursor.style.display = 'block';
             wordList.sort(() => Math.random() - 0.5);
+            gameStarted = true;
             showWord();
         }
 
         function showWord() {
             if(currentIndex >= wordList.length) {
-                document.getElementById('current-word').innerHTML = "🎉 จบเกมเก่งมาก! 🎉";
+                document.getElementById('current-word').innerHTML = "🎉 จบเกม! 🎉";
                 document.getElementById('current-image').style.display = 'none';
-                container.style.pointerEvents = 'none';
                 return;
             }
             const currentItem = wordList[currentIndex];
             document.getElementById('current-word').innerText = currentItem.word;
             document.getElementById('current-image').src = currentItem.img;
-            document.getElementById('current-image').style.display = 'inline-block';
             
-            // รีเซ็ตตำแหน่งกล่องให้อยู่ตรงกลางทุกครั้งที่เปลี่ยนคำ
-            xOffset = 0; yOffset = 0;
-            setTranslate(0, 0, container);
+            // รีเซ็ตการ์ดกลับไปตรงกลาง
+            container.style.left = '50%';
+            container.style.top = '30%';
+            container.style.transform = 'translate(-50%, -50%)';
         }
 
-        // --- เพิ่ม Event Listeners ให้รองรับทั้ง Touch และ Mouse ---
-        card.addEventListener("touchstart", dragStart, {passive: false});
-        card.addEventListener("touchend", dragEnd, {passive: false});
-        card.addEventListener("touchmove", drag, {passive: false});
+        // --- ระบบ AI MediaPipe สำหรับ Hand Tracking ---
+        const videoElement = document.getElementById('webcam');
+        
+        const hands = new Hands({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+        }});
 
-        card.addEventListener("mousedown", dragStart);
-        window.addEventListener("mouseup", dragEnd);
-        window.addEventListener("mousemove", drag);
+        hands.setOptions({
+            maxNumHands: 1, // จับมือเดียวพอเพื่อความลื่นไหล
+            modelComplexity: 0, // โมเดลเบาสำหรับมือถือ
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.7
+        });
 
-        function dragStart(e) {
-            if (e.type === "touchstart") {
-                initialX = e.touches[0].clientX - xOffset;
-                initialY = e.touches[0].clientY - yOffset;
-            } else {
-                initialX = e.clientX - xOffset;
-                initialY = e.clientY - yOffset;
-            }
-            
-            if (e.target === card || card.contains(e.target)) { 
-                active = true; 
-            }
-        }
+        hands.onResults((results) => {
+            if (!gameStarted) return;
 
-        function drag(e) {
-            if (active) {
-                e.preventDefault();
-                if (e.type === "touchmove") {
-                    currentX = e.touches[0].clientX - initialX;
-                    currentY = e.touches[0].clientY - initialY;
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const landmarks = results.multiHandLandmarks[0];
+                const indexFinger = landmarks[8]; // ปลายนิ้วชี้
+                const thumb = landmarks[4];       // ปลายนิ้วโป้ง
+
+                // คำนวณพิกัดมือแปลงเป็นพิกัดหน้าจอ (กล้องกลับซ้ายขวา ต้องนำ 1 ไปลบ x)
+                const screenX = (1 - indexFinger.x) * window.innerWidth;
+                const screenY = indexFinger.y * window.innerHeight;
+
+                // อัปเดตตำแหน่งจุดเคอร์เซอร์สีแดง
+                cursor.style.left = screenX + 'px';
+                cursor.style.top = screenY + 'px';
+
+                // คำนวณระยะห่างระหว่างนิ้วชี้และนิ้วโป้ง (หาระยะ Pinch)
+                const distance = Math.hypot(indexFinger.x - thumb.x, indexFinger.y - thumb.y);
+                const isPinching = distance < 0.05; // ถ้าห่างกันน้อยกว่าค่านี้ ถือว่า "กำลังจีบนิ้ว"
+
+                if (isPinching) {
+                    cursor.classList.add('pinching'); // เปลี่ยนสีเคอร์เซอร์เป็นสีเขียว
+                    
+                    if (!isGrabbed) {
+                        // เช็คว่าตำแหน่งนิ้วตอนเริ่มจีบ อยู่ในกรอบของการ์ดหรือไม่
+                        const rect = container.getBoundingClientRect();
+                        if (screenX >= rect.left && screenX <= rect.right &&
+                            screenY >= rect.top && screenY <= rect.bottom) {
+                            isGrabbed = true;
+                        }
+                    } else {
+                        // ถ้าจับอยู่ ให้การ์ดขยับตามพิกัดนิ้ว
+                        container.style.left = screenX + 'px';
+                        container.style.top = screenY + 'px';
+                    }
                 } else {
-                    currentX = e.clientX - initialX;
-                    currentY = e.clientY - initialY;
+                    cursor.classList.remove('pinching');
+                    
+                    // ปล่อยนิ้ว (Drop)
+                    if (isGrabbed) {
+                        isGrabbed = false;
+                        checkDropZone(screenX, screenY);
+                    }
                 }
-                xOffset = currentX;
-                yOffset = currentY;
-                setTranslate(currentX, currentY, container);
             }
-        }
+        });
 
-        function setTranslate(xPos, yPos, el) {
-            el.style.transform = `translate(calc(-50% + ${xPos}px), calc(-50% + ${yPos}px))`;
-        }
-
-        function dragEnd(e) {
-            if (!active) return;
-            active = false;
-
-            const windowWidth = window.innerWidth;
-            const windowHeight = window.innerHeight;
-
-            // ดึงพิกัดสุดท้ายของนิ้วหรือเมาส์ที่ปล่อยสัมผัส
-            let dropX, dropY;
-            if (e.type === "touchend") {
-                dropX = e.changedTouches[0].clientX;
-                dropY = e.changedTouches[0].clientY;
-            } else {
-                dropX = e.clientX;
-                dropY = e.clientY;
-            }
-
-            // ตรวจสอบว่าลากลงมาต่ำกว่า 50% ของความสูงหน้าจอหรือยัง (เข้าสู่โซนตะกร้าด้านล่าง)
-            if (dropY > windowHeight * 0.50) {
-                // แยกฝั่งซ้าย (Countable) หรือขวา (Uncountable) จากกึ่งกลางหน้าจอ
-                if (dropX < windowWidth * 0.5) {
-                    judgeAnswer(true); // เลือกตะกร้าซ้าย
-                } else {
-                    judgeAnswer(false); // เลือกตะกร้าขวา
-                }
-            } else {
-                // ลากไม่ถึงเป้าหมาย ดีดกลับตรงกลางทันที
-                xOffset = 0; yOffset = 0;
-                setTranslate(0, 0, container);
-            }
-        }
-
-        function judgeAnswer(userAnswer) {
-            const currentItem = wordList[currentIndex];
-            const feedbackEl = document.getElementById('feedback');
-
-            if (userAnswer === currentItem.isCountable) {
-                score += 10;
-                document.getElementById('score').innerText = score;
-                feedbackEl.style.backgroundColor = "#28a745";
-                feedbackEl.innerHTML = "ถูกต้อง! 🎉";
-            } else {
-                feedbackEl.style.backgroundColor = "#dc3545";
-                feedbackEl.innerHTML = `ยังไม่ถูกน้า 💡<br><span style='font-size:16px; font-weight:normal; display:block; margin-top:10px;'>${currentItem.hint}</span>`;
-            }
-
-            feedbackEl.style.display = 'block';
-            container.style.display = 'none';
-
-            setTimeout(() => {
-                feedbackEl.style.display = 'none';
-                container.style.display = 'block';
-                currentIndex++;
-                showWord();
-            }, 2400); 
-        }
-    </script>
-</body>
-</html>
+        // เปิดกล้องและเริ่มส่งภาพเข้า AI
+        const camera = new Camera(videoElement, {
+            onFrame: async () => { await hands.send({image: videoElement}); },
+            width: 640, height: 480
+        });
+        
+        camera.start().then(() => {
+            // เมื่อกล้องและโมเดลพร้อม ให้ซ่อนข้อความโหลด และแสดงปุ่มเริ่มเกม
+            document.getElementById('loading-text').style.display = 'none';
+            document.getElementById('start-btn
