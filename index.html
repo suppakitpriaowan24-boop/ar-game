@@ -3,56 +3,75 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Kitchen Dash: Countable vs Uncountable</title>
+    <title>Kitchen Dash: Countable vs Uncountable (With Images)</title>
     <!-- เรียกใช้ A-Frame และ AR.js รุ่นที่เสถียรที่สุดสำหรับ WebAR -->
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
     
     <style>
-        body { margin: 0; overflow: hidden; font-family: 'Arial', sans-serif; }
+        body { margin: 0; overflow: hidden; font-family: 'Arial', sans-serif; background-color: #000; }
         
         /* หน้าจอแนะนำการเล่นก่อนเริ่มเกม */
         #tutorial-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.85); color: white; display: flex;
+            background: rgba(0,0,0,0.9); color: white; display: flex;
             flex-direction: column; justify-content: center; align-items: center;
             z-index: 9999; text-align: center; padding: 20px; box-sizing: border-box;
         }
         #start-btn {
             background: #28a745; color: white; border: none; padding: 15px 35px;
-            font-size: 20px; border-radius: 10px; cursor: pointer; margin-top: 20px;
+            font-size: 22px; border-radius: 10px; cursor: pointer; margin-top: 25px;
             font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         }
 
         /* ส่วนแสดงคะแนนและคำศัพท์ตรงกลาง */
         #game-ui {
-            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
-            width: 90%; max-width: 400px; text-align: center; z-index: 1000;
+            position: fixed; top: 15px; left: 50%; transform: translateX(-50%);
+            width: 90%; max-width: 420px; text-align: center; z-index: 1000;
             pointer-events: none; display: none;
         }
-        .score-box { background: rgba(0,0,0,0.7); color: gold; padding: 8px 15px; border-radius: 20px; font-size: 18px; display: inline-block; margin-bottom: 10px; }
-        .word-box { background: white; color: #333; padding: 15px; border-radius: 15px; font-size: 28px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+        .score-box { background: rgba(0,0,0,0.75); color: gold; padding: 8px 15px; border-radius: 20px; font-size: 18px; display: inline-block; margin-bottom: 10px; font-weight: bold; }
+        
+        /* กล่องเนื้อหาหลัก (แสดงรูป + คำศัพท์) */
+        .card-box { 
+            background: white; 
+            padding: 15px; 
+            border-radius: 20px; 
+            box-shadow: 0 6px 15px rgba(0,0,0,0.4);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .word-image {
+            width: 180px;
+            height: 140px;
+            object-fit: cover;
+            border-radius: 12px;
+            margin-bottom: 12px;
+            border: 3px solid #f0f0f0;
+        }
+        .word-text { color: #222; font-size: 32px; font-weight: bold; margin: 0; }
 
         /* ปุ่มเลือกคำตอบฝั่งซ้าย-ขวา */
         #controls {
-            position: fixed; bottom: 40px; left: 0; width: 100%;
+            position: fixed; bottom: 35px; left: 0; width: 100%;
             display: flex; justify-content: space-around; z-index: 1000;
-            display: none; padding: 0 10px; box-sizing: border-box;
+            display: none; padding: 0 12px; box-sizing: border-box;
         }
         .btn {
-            width: 45%; padding: 20px 10px; font-size: 20px; font-weight: bold;
+            width: 46%; padding: 22px 10px; font-size: 20px; font-weight: bold;
             border: none; border-radius: 15px; color: white; cursor: pointer;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3); text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.3); text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
         }
-        .btn-countable { background: #007bff; } /* ฝั่งซ้าย นับได้ */
-        .btn-uncountable { background: #dc3545; } /* ฝั่งขวา นับไม่ได้ */
+        .btn-countable { background: #007bff; border-bottom: 5px solid #0056b3; } /* ฝั่งซ้าย นับได้ */
+        .btn-uncountable { background: #dc3545; border-bottom: 5px solid #bd2130; } /* ฝั่งขวา นับไม่ได้ */
 
         /* แสดงผลตรวจคำตอบ Popup */
         #feedback {
-            position: fixed; top: 40%; left: 50%; transform: translate(-50%, -50%);
-            padding: 20px 40px; border-radius: 15px; font-size: 26px; font-weight: bold;
+            position: fixed; top: 45%; left: 50%; transform: translate(-50%, -50%);
+            width: 80%; max-width: 320px; padding: 25px 20px; border-radius: 20px; font-size: 26px; font-weight: bold;
             color: white; display: none; z-index: 2000; text-align: center;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.6);
         }
     </style>
 </head>
@@ -60,43 +79,65 @@
 
     <!-- 1. หน้าแรก: แนะนำการเล่น -->
     <div id="tutorial-overlay">
-        <h2> Kitchen Dash: The Noun Sorter</h2>
-        <p style="font-size: 18px; margin: 15px 0; max-width: 300px; line-height: 1.5;">
-            ให้นักเรียนดูคำศัพท์ที่ปรากฏกลางหน้าจอ จากนั้นกดปุ่มเลือกฝั่งให้ถูกต้อง หรือเดินไปยืนฝั่งที่ครูกำหนด!
+        <h2 style="font-size: 26px; color: #ffca28; margin-bottom: 5px;"> Kitchen Dash 🍎</h2>
+        <h3 style="margin-top: 0; font-weight: normal;">The Noun Sorter</h3>
+        <p style="font-size: 18px; margin: 15px 0; max-width: 320px; line-height: 1.6;">
+            สังเกตรูปภาพและคำศัพท์กลางหน้าจอ <br>
+            แล้วให้กลุ่มนักเรียนเดินไปยืนฝั่งที่ถูกต้อง <br>
+            จากนั้นกดเลือกประเภทคำนาม!
         </p>
-        <button id="start-btn" onclick="startGame()">เริ่มเล่นเกมเลย!</button>
+        <button id="start-btn" onclick="startGame()">เริ่มทำกิจกรรม!</button>
     </div>
 
     <!-- 2. หน้าจอสถานะเกม (UI Overlay) -->
     <div id="game-ui">
-        <div class="score-box">คะแนนของคุณ: <span id="score">0</span></div>
-        <div class="word-box" id="current-word">Loading...</div>
+        <div class="score-box">คะแนนกลุ่ม: <span id="score">0</span></div>
+        <div class="card-box">
+            <img id="current-image" class="word-image" src="" alt="Word Image">
+            <div class="word-text" id="current-word">Loading...</div>
+        </div>
     </div>
 
     <!-- 3. ปุ่มกดเลือกฝั่ง -->
     <div id="controls">
-        <button class="btn btn-countable" onclick="checkAnswer(true)">← Countable<br>(นับได้)</button>
-        <button class="btn btn-uncountable" onclick="checkAnswer(false)">Uncountable →<br>(นับไม่ได้)</button>
+        <button class="btn btn-countable" onclick="checkAnswer(true)">← Countable<br>(นามนับได้)</button>
+        <button class="btn btn-uncountable" onclick="checkAnswer(false)">Uncountable →<br>(นามนับไม่ได้)</button>
     </div>
 
     <!-- 4. กล่องแจ้งเตือนผลลัพธ์ -->
     <div id="feedback"></div>
 
-    <!-- 5. กล้องและสิ่งแวดล้อน AR (ระบบ Markerless / ตรวจจับพื้นผิวเบื้องต้น) -->
+    <!-- 5. กล้อง AR -->
     <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false;">
-        <!-- สร้างจุดอ้างอิงแสงและมุมกล้องของ AR -->
         <a-entity camera></a-entity>
     </a-scene>
 
     <script>
-        // รายการคำศัพท์ ป.6 ที่พร้อมนำไปสอน
+        // คลังคำศัพท์ 20 คำสไตล์รูปภาพชัดเจน เหมาะสำหรับ ป.6
         const wordList = [
-            { word: "🍎 Apple", isCountable: true, hint: "Apple นับเป็นลูกๆ ได้จ้า" },
-            { word: "🥛 Milk", isCountable: false, hint: "Milk เป็นของเหลว นับไม่ได้นะ" },
-            { word: "🥚 Egg", isCountable: true, hint: "Egg นับเป็นฟองได้จ้า" },
-            { word: "🍚 Rice", isCountable: false, hint: "Rice เมล็ดเล็กเกินไป กิโลนึงมีเป็นหมื่นเมล็ด นับไม่ได้นะ" },
-            { word: "🍌 Banana", isCountable: true, hint: "Banana นับเป็นลูกหรือเป็นหวีได้จ้า" },
-            { word: "🍞 Bread", isCountable: false, hint: "Bread นับเป็นก้อน/แผ่น แต่คำว่า Bread เป็นนามนับไม่ได้จ้า" }
+            // --- COUNTABLE NOUNS (10 คำ) ---
+            { word: "Apple", isCountable: true, img: "https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?w=400", hint: "Apple นับเป็นลูกๆ ได้ชัดเจนจ้า" },
+            { word: "Egg", isCountable: true, img: "https://images.unsplash.com/photo-1506976785307-8732e854ad03?w=400", hint: "Egg นับเป็นฟองหรือเป็นฟองๆ ได้นะ" },
+            { word: "Banana", isCountable: true, img: "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=400", hint: "Banana สามารถนับเป็นลูกหรือเป็นหวีได้จ้า" },
+            { word: "Burger", isCountable: true, img: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400", hint: "Burger นับเป็นชิ้น เป็นอันได้เลย" },
+            { word: "Carrot", isCountable: true, img: "https://images.unsplash.com/photo-1598170845058-32b996a69427?w=400", hint: "Carrot นับเป็นหัวหรือเป็นแท่งได้จ้า" },
+            { word: "Orange", isCountable: true, img: "https://images.unsplash.com/photo-1547514701-42782101795e?w=400", hint: "Orange ส้มเป็นลูกๆ นับได้แน่นอน" },
+            { word: "Tomato", isCountable: true, img: "https://images.unsplash.com/photo-1595855759920-86582396756a?w=400", hint: "Tomato มะเขือเทศนับเป็นลูกได้จ้า" },
+            { word: "Cookie", isCountable: true, img: "https://images.unsplash.com/photo-1499636136210-6f4ee915583e?w=400", hint: "Cookie นับเป็นชิ้นหรือเป็นแผ่นได้" },
+            { word: "Watermelon", isCountable: true, img: "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=400", hint: "Watermelon แตงโมเป็นผล นับได้จ้า" },
+            { word: "Lemon", isCountable: true, img: "https://images.unsplash.com/photo-1534531173927-aeb928d54385?w=400", hint: "Lemon มะนาวเหลืองนับเป็นลูกได้" },
+
+            // --- UNCOUNTABLE NOUNS (10 คำ) ---
+            { word: "Milk", isCountable: false, img: "https://images.unsplash.com/photo-1550583724-b2692b85b150?w=400", hint: "Milk เป็นของเหลว ต้องนับเป็นกล่องหรือแก้วนะ" },
+            { word: "Water", isCountable: false, img: "https://images.unsplash.com/photo-1548824226-f50fd9263588?w=400", hint: "Water น้ำเปล่าเป็นของเหลว ไม่มีรูปทรงคงที่ นับไม่ได้จ้า" },
+            { word: "Rice", isCountable: false, img: "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400", hint: "Rice เมล็ดข้าวเล็กและมีจำนวนมากเกินไปที่จะนับจ้า" },
+            { word: "Bread", isCountable: false, img: "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400", hint: "Bread ขนมปังภาษาอังกฤษถือเป็นนามนับไม่ได้น้า" },
+            { word: "Cheese", isCountable: false, img: "https://images.unsplash.com/photo-1486297678162-ad2a14b34897?w=400", hint: "Cheese นับไม่ได้ ต้องนับเป็นชิ้น แผ่น หรือก้อน" },
+            { word: "Sugar", isCountable: false, img: "https://images.unsplash.com/photo-1581798459219-318e76aecc7b?w=400", hint: "Sugar น้ำตาลเป็นเกล็ดเล็กๆ นับไม่ได้จ้า" },
+            { word: "Soup", isCountable: false, img: "https://images.unsplash.com/photo-1547592165-e1d17fed6005?w=400", hint: "Soup น้ำซุปเป็นของเหลว นับไม่ได้จ้า" },
+            { word: "Honey", isCountable: false, img: "https://images.unsplash.com/photo-1587049352851-8d4e89134292?w=400", hint: "Honey น้ำผึ้งเหนียวๆ เป็นของเหลว นับไม่ได้" },
+            { word: "Juice", isCountable: false, img: "https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?w=400", hint: "Juice น้ำผลไม้เป็นของเหลว นับไม่ได้จ้า" },
+            { word: "Meat", isCountable: false, img: "https://images.unsplash.com/photo-1603048588665-791ca8aea617?w=400", hint: "Meat เนื้อสัตว์เรานับไม่ได้ ต้องวัดด้วยน้ำหนัก (กิโลกรัม)" }
         ];
 
         let currentIndex = 0;
@@ -116,12 +157,14 @@
 
         function showWord() {
             if(currentIndex >= wordList.length) {
-                // เล่นครบทุกคำแล้ว
-                document.getElementById('current-word').innerHTML = " 🎉 เก่งมากเล่นครบแล้ว! 🎉";
+                document.getElementById('current-word').innerHTML = "🎉 จบเกม! เก่งมากครับ 🎉";
+                document.getElementById('current-image').style.display = 'none';
                 document.getElementById('controls').style.display = 'none';
                 return;
             }
-            document.getElementById('current-word').innerText = wordList[currentIndex].word;
+            const currentItem = wordList[currentIndex];
+            document.getElementById('current-word').innerText = currentItem.word;
+            document.getElementById('current-image').src = currentItem.img;
         }
 
         function checkAnswer(userAnswer) {
@@ -129,27 +172,24 @@
             const feedbackEl = document.getElementById('feedback');
 
             if (userAnswer === currentItem.isCountable) {
-                // ตอบถูก
                 score += 10;
                 document.getElementById('score').innerText = score;
                 feedbackEl.style.backgroundColor = "#28a745";
-                feedbackEl.innerText = "ถูกต้อง! 🎉";
+                feedbackEl.innerHTML = "ถูกต้อง! 🎉";
             } else {
-                // ตอบผิด
                 feedbackEl.style.backgroundColor = "#dc3545";
-                feedbackEl.innerHTML = "ยังไม่ถูกน้า 💡<br><span style='font-size:16px; font-weight:normal;'>" + currentItem.hint + "</span>";
+                feedbackEl.innerHTML = "ยังไม่ถูกน้า 💡<br><span style='font-size:16px; font-weight:normal; display:block; margin-top:10px;'>" + currentItem.hint + "</span>";
             }
 
             feedbackEl.style.display = 'block';
-            document.getElementById('controls').style.pointerEvents = 'none'; // กันกดเบิ้ล
+            document.getElementById('controls').style.pointerEvents = 'none';
 
-            // หน่วงเวลา 2.5 วินาทีเพื่อให้อ่าน Feedback ก่อนเปลี่ยนคำถัดไป
             setTimeout(() => {
                 feedbackEl.style.display = 'none';
                 document.getElementById('controls').style.pointerEvents = 'auto';
                 currentIndex++;
                 showWord();
-            }, 2500);
+            }, 3000); // เพิ่มเวลาเป็น 3 วินาทีเพื่อให้นักเรียนอ่าน Hint ได้ทัน
         }
     </script>
 </body>
