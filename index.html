@@ -1,170 +1,156 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="th">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>AR Nouns: Countable vs Uncountable</title>
-  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-  <style>
-    /* ตกแต่ง UI ของ Tutorial และ Feedback */
-    #ui-container {
-      position: absolute; z-index: 1000; width: 100%; top: 10%;
-      text-align: center; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      pointer-events: none;
-    }
-    #tutorial {
-      background: rgba(0, 0, 0, 0.75); padding: 15px 25px; border-radius: 30px;
-      display: inline-block; font-size: 1.2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-      transition: all 0.3s ease;
-    }
-    #feedback {
-      margin-top: 20px; font-size: 2rem; font-weight: bold; text-shadow: 2px 2px 4px #000;
-      display: none; padding: 15px 30px; border-radius: 15px; text-transform: uppercase;
-    }
-    .correct { background-color: rgba(39, 174, 96, 0.9); }
-    .incorrect { background-color: rgba(231, 76, 60, 0.9); }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Kitchen Dash: Countable vs Uncountable</title>
+    <!-- เรียกใช้ A-Frame และ AR.js รุ่นที่เสถียรที่สุดสำหรับ WebAR -->
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+    
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Arial', sans-serif; }
+        
+        /* หน้าจอแนะนำการเล่นก่อนเริ่มเกม */
+        #tutorial-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); color: white; display: flex;
+            flex-direction: column; justify-content: center; align-items: center;
+            z-index: 9999; text-align: center; padding: 20px; box-sizing: border-box;
+        }
+        #start-btn {
+            background: #28a745; color: white; border: none; padding: 15px 35px;
+            font-size: 20px; border-radius: 10px; cursor: pointer; margin-top: 20px;
+            font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        /* ส่วนแสดงคะแนนและคำศัพท์ตรงกลาง */
+        #game-ui {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            width: 90%; max-width: 400px; text-align: center; z-index: 1000;
+            pointer-events: none; display: none;
+        }
+        .score-box { background: rgba(0,0,0,0.7); color: gold; padding: 8px 15px; border-radius: 20px; font-size: 18px; display: inline-block; margin-bottom: 10px; }
+        .word-box { background: white; color: #333; padding: 15px; border-radius: 15px; font-size: 28px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+
+        /* ปุ่มเลือกคำตอบฝั่งซ้าย-ขวา */
+        #controls {
+            position: fixed; bottom: 40px; left: 0; width: 100%;
+            display: flex; justify-content: space-around; z-index: 1000;
+            display: none; padding: 0 10px; box-sizing: border-box;
+        }
+        .btn {
+            width: 45%; padding: 20px 10px; font-size: 20px; font-weight: bold;
+            border: none; border-radius: 15px; color: white; cursor: pointer;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3); text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+        .btn-countable { background: #007bff; } /* ฝั่งซ้าย นับได้ */
+        .btn-uncountable { background: #dc3545; } /* ฝั่งขวา นับไม่ได้ */
+
+        /* แสดงผลตรวจคำตอบ Popup */
+        #feedback {
+            position: fixed; top: 40%; left: 50%; transform: translate(-50%, -50%);
+            padding: 20px 40px; border-radius: 15px; font-size: 26px; font-weight: bold;
+            color: white; display: none; z-index: 2000; text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        }
+    </style>
 </head>
 <body>
 
-  <div id="ui-container">
-    <div id="tutorial">🔍 หาพื้นที่เรียบๆ แล้วแตะหน้าจอเพื่อวางคำศัพท์</div>
+    <!-- 1. หน้าแรก: แนะนำการเล่น -->
+    <div id="tutorial-overlay">
+        <h2> Kitchen Dash: The Noun Sorter</h2>
+        <p style="font-size: 18px; margin: 15px 0; max-width: 300px; line-height: 1.5;">
+            ให้นักเรียนดูคำศัพท์ที่ปรากฏกลางหน้าจอ จากนั้นกดปุ่มเลือกฝั่งให้ถูกต้อง หรือเดินไปยืนฝั่งที่ครูกำหนด!
+        </p>
+        <button id="start-btn" onclick="startGame()">เริ่มเล่นเกมเลย!</button>
+    </div>
+
+    <!-- 2. หน้าจอสถานะเกม (UI Overlay) -->
+    <div id="game-ui">
+        <div class="score-box">คะแนนของคุณ: <span id="score">0</span></div>
+        <div class="word-box" id="current-word">Loading...</div>
+    </div>
+
+    <!-- 3. ปุ่มกดเลือกฝั่ง -->
+    <div id="controls">
+        <button class="btn btn-countable" onclick="checkAnswer(true)">← Countable<br>(นับได้)</button>
+        <button class="btn btn-uncountable" onclick="checkAnswer(false)">Uncountable →<br>(นับไม่ได้)</button>
+    </div>
+
+    <!-- 4. กล่องแจ้งเตือนผลลัพธ์ -->
     <div id="feedback"></div>
-  </div>
 
-  <a-scene webxr="requiredFeatures: hit-test, local-floor;" ar-game-logic>
-    
-    <a-camera id="player-camera" position="0 1.6 0"></a-camera>
+    <!-- 5. กล้องและสิ่งแวดล้อน AR (ระบบ Markerless / ตรวจจับพื้นผิวเบื้องต้น) -->
+    <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false;">
+        <!-- สร้างจุดอ้างอิงแสงและมุมกล้องของ AR -->
+        <a-entity camera></a-entity>
+    </a-scene>
 
-    <a-entity id="reticle" visible="false"
-              geometry="primitive: ring; radiusInner: 0.1; radiusOuter: 0.15"
-              material="color: #00FF00; shader: flat; opacity: 0.8"
-              rotation="-90 0 0">
-    </a-entity>
+    <script>
+        // รายการคำศัพท์ ป.6 ที่พร้อมนำไปสอน
+        const wordList = [
+            { word: "🍎 Apple", isCountable: true, hint: "Apple นับเป็นลูกๆ ได้จ้า" },
+            { word: "🥛 Milk", isCountable: false, hint: "Milk เป็นของเหลว นับไม่ได้นะ" },
+            { word: "🥚 Egg", isCountable: true, hint: "Egg นับเป็นฟองได้จ้า" },
+            { word: "🍚 Rice", isCountable: false, hint: "Rice เมล็ดเล็กเกินไป กิโลนึงมีเป็นหมื่นเมล็ด นับไม่ได้นะ" },
+            { word: "🍌 Banana", isCountable: true, hint: "Banana นับเป็นลูกหรือเป็นหวีได้จ้า" },
+            { word: "🍞 Bread", isCountable: false, hint: "Bread นับเป็นก้อน/แผ่น แต่คำว่า Bread เป็นนามนับไม่ได้จ้า" }
+        ];
 
-    <a-entity id="game-arena" visible="false">
-      
-      <a-entity id="vocab-model" position="0 0.2 0" animation="property: rotation; to: 0 360 0; loop: true; dur: 5000">
-        <a-text id="vocab-text" value="Apple" align="center" scale="1.5 1.5 1.5" color="#FFD700" position="0 0.5 0"></a-text>
-        <a-box color="#FF4500" depth="0.2" height="0.2" width="0.2"></a-box>
-      </a-entity>
+        let currentIndex = 0;
+        let score = 0;
 
-      <a-entity geometry="primitive: plane; width: 0.05; height: 10" material="color: white; shader: flat" rotation="-90 0 0" position="0 0 0"></a-entity>
-      
-      <a-entity position="-1.5 0.01 0" rotation="-90 0 0">
-        <a-plane width="2" height="10" material="color: #3498db; opacity: 0.3; transparent: true"></a-plane>
-        <a-text value="Countable\n(LEFT)" align="center" color="#FFF" scale="2 2 2" position="0 2 0"></a-text>
-      </a-entity>
+        function startGame() {
+            document.getElementById('tutorial-overlay').style.display = 'none';
+            document.getElementById('game-ui').style.display = 'block';
+            document.getElementById('controls').style.display = 'flex';
+            shuffleWords();
+            showWord();
+        }
 
-      <a-entity position="1.5 0.01 0" rotation="-90 0 0">
-        <a-plane width="2" height="10" material="color: #e67e22; opacity: 0.3; transparent: true"></a-plane>
-        <a-text value="Uncountable\n(RIGHT)" align="center" color="#FFF" scale="2 2 2" position="0 2 0"></a-text>
-      </a-entity>
+        function shuffleWords() {
+            wordList.sort(() => Math.random() - 0.5);
+        }
 
-    </a-entity>
-  </a-scene>
-
-  <script>
-    // Logic การทำงานของ AR Markerless
-    AFRAME.registerComponent('ar-game-logic', {
-      init: function () {
-        this.reticle = document.getElementById('reticle');
-        this.gameArena = document.getElementById('game-arena');
-        this.tutorial = document.getElementById('tutorial');
-        this.feedback = document.getElementById('feedback');
-        this.camera = document.getElementById('player-camera');
-        
-        // ตั้งโจทย์คำศัพท์
-        this.currentVocab = { word: "Apple", type: "countable" }; // เปลี่ยนเป็น "Milk" / "uncountable" ได้
-        this.arenaPlaced = false;
-
-        // เปลี่ยนข้อความ Tutorial เมื่อเข้าโหมด AR
-        this.el.addEventListener('enter-vr', () => {
-          if (this.el.is('ar-mode')) {
-            this.tutorial.innerHTML = "ส่องกล้องไปที่พื้นห้องเรียน<br>เมื่อเห็นเป้าสีเขียว ให้แตะหน้าจอ!";
-          }
-        });
-
-        // ตั้งค่า Hit-Testing (ตรวจจับพื้นผิว)
-        this.el.sceneEl.renderer.xr.addEventListener('sessionstart', async () => {
-          const session = this.el.sceneEl.renderer.xr.getSession();
-          const viewerSpace = await session.requestReferenceSpace('viewer');
-          this.localFloorSpace = await session.requestReferenceSpace('local-floor');
-          this.hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
-        });
-
-        // เมื่อผู้ใช้แตะหน้าจอเพื่อวางคำศัพท์และเส้นแบ่งโซน
-        window.addEventListener('click', () => {
-          if (!this.reticle.getAttribute('visible') || this.arenaPlaced) return;
-
-          // นำตำแหน่งของ Reticle มาเป็นจุดกึ่งกลางของ Arena
-          const position = this.reticle.getAttribute('position');
-          this.gameArena.setAttribute('position', position);
-          
-          // หันหน้า Arena เข้าหาผู้ใช้
-          const camRotation = this.camera.getAttribute('rotation');
-          this.gameArena.setAttribute('rotation', { x: 0, y: camRotation.y, z: 0 });
-
-          this.gameArena.setAttribute('visible', true);
-          this.reticle.setAttribute('visible', false);
-          this.arenaPlaced = true;
-
-          this.tutorial.innerHTML = "ให้นักเรียนเดินไปยืนฝั่งที่ถูกต้อง!<br>ซ้าย (Countable) หรือ ขวา (Uncountable)";
-        });
-      },
-
-      tick: function (time, frame) {
-        if (!frame) return;
-
-        // 1. ระบบวาด Reticle ตอนค้นหาพื้น
-        if (!this.arenaPlaced) {
-          const session = this.el.sceneEl.renderer.xr.getSession();
-          if (this.hitTestSource && session) {
-            const hitTestResults = frame.getHitTestResults(this.hitTestSource);
-            if (hitTestResults.length > 0) {
-              const pose = hitTestResults[0].getPose(this.localFloorSpace);
-              this.reticle.setAttribute('visible', true);
-              this.reticle.setAttribute('position', pose.transform.position);
-            } else {
-              this.reticle.setAttribute('visible', false);
+        function showWord() {
+            if(currentIndex >= wordList.length) {
+                // เล่นครบทุกคำแล้ว
+                document.getElementById('current-word').innerHTML = " 🎉 เก่งมากเล่นครบแล้ว! 🎉";
+                document.getElementById('controls').style.display = 'none';
+                return;
             }
-          }
-          return;
+            document.getElementById('current-word').innerText = wordList[currentIndex].word;
         }
 
-        // 2. ระบบโต้ตอบ (Feedback) เมื่อเด็กเดินเข้าโซน
-        // เช็คตำแหน่งของกล้อง (นักเรียน) เทียบกับ Arena ที่วางไว้
-        const camPos = new THREE.Vector3();
-        this.camera.object3D.getWorldPosition(camPos);
-        
-        const arenaPos = new THREE.Vector3();
-        this.gameArena.object3D.getWorldPosition(arenaPos);
+        function checkAnswer(userAnswer) {
+            const currentItem = wordList[currentIndex];
+            const feedbackEl = document.getElementById('feedback');
 
-        // แปลงตำแหน่งกล้องให้อยู่ในแกน (Local Space) ของ Arena เพื่อหาว่าอยู่ซ้ายหรือขวา
-        const localCamPos = this.gameArena.object3D.worldToLocal(camPos.clone());
-        
-        // เช็คว่าเดินออกจากจุดกึ่งกลางพอสมควรหรือไม่ (กันการยืนคร่อมเส้น)
-        if (Math.abs(localCamPos.x) > 0.5) { 
-          const isStandingLeft = localCamPos.x < 0; // ฝั่งซ้ายคือ -x
-          const isStandingRight = localCamPos.x > 0; // ฝั่งขวาคือ +x
-          
-          this.feedback.style.display = "inline-block";
-          
-          // ตรวจคำตอบ (ในตัวอย่าง Apple = Countable = ฝั่งซ้าย)
-          if ((isStandingLeft && this.currentVocab.type === 'countable') || 
-              (isStandingRight && this.currentVocab.type === 'uncountable')) {
-            this.feedback.innerHTML = "⭐ CORRECT! เยี่ยมมาก ⭐";
-            this.feedback.className = "correct";
-          } else {
-            this.feedback.innerHTML = "❌ INCORRECT! ลองดูใหม่นะ ❌";
-            this.feedback.className = "incorrect";
-          }
-        } else {
-          // ถ้ายืนอยู่ตรงกลางเส้นแบ่ง จะไม่แสดงผลลัพธ์
-          this.feedback.style.display = "none";
+            if (userAnswer === currentItem.isCountable) {
+                // ตอบถูก
+                score += 10;
+                document.getElementById('score').innerText = score;
+                feedbackEl.style.backgroundColor = "#28a745";
+                feedbackEl.innerText = "ถูกต้อง! 🎉";
+            } else {
+                // ตอบผิด
+                feedbackEl.style.backgroundColor = "#dc3545";
+                feedbackEl.innerHTML = "ยังไม่ถูกน้า 💡<br><span style='font-size:16px; font-weight:normal;'>" + currentItem.hint + "</span>";
+            }
+
+            feedbackEl.style.display = 'block';
+            document.getElementById('controls').style.pointerEvents = 'none'; // กันกดเบิ้ล
+
+            // หน่วงเวลา 2.5 วินาทีเพื่อให้อ่าน Feedback ก่อนเปลี่ยนคำถัดไป
+            setTimeout(() => {
+                feedbackEl.style.display = 'none';
+                document.getElementById('controls').style.pointerEvents = 'auto';
+                currentIndex++;
+                showWord();
+            }, 2500);
         }
-      }
-    });
-  </script>
+    </script>
 </body>
 </html>
